@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2f7548">
+<title>Jogo da Memória — Minha Horta</title>
+<style>
+:root{--green:#2f7548;--green2:#eaf5ec;--ink:#203328;--gold:#f1c75b}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);background:linear-gradient(180deg,#f2f9ef,#fff 55%);padding:20px 14px 36px}
+main{max-width:520px;margin:auto}
+header{text-align:center;margin:8px 0 18px}
+header .art{font-size:2.2rem;letter-spacing:7px}
+h1{font-size:clamp(1.65rem,6vw,2.2rem);margin:4px 0;color:var(--green)}
+header p{margin:4px 0;color:#55705d}
+.panel{background:white;border:1px solid #dcebdd;border-radius:20px;padding:16px;box-shadow:0 8px 28px #244b2a12}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:15px}
+.stat{background:var(--green2);border-radius:13px;text-align:center;padding:9px 4px}
+.stat strong{display:block;font-size:1.35rem;color:var(--green)}
+.stat span{font-size:.78rem;color:#58705e}
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.card{border:0;border-radius:14px;aspect-ratio: .78;background:var(--green);color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:inherit;cursor:pointer;box-shadow:0 3px 0 #205638;transition:transform .12s,background .12s;padding:4px}
+.card:active{transform:scale(.96)}
+.card .symbol{font-size:clamp(1.65rem,8vw,2.5rem);line-height:1.1}
+.card .name{font-size:clamp(.62rem,2.6vw,.82rem);font-weight:650}
+.card.revealed,.card.matched{background:#fff8df;color:var(--ink);border:2px solid var(--gold);box-shadow:none}
+.card.matched{background:#e8f5e9;border-color:#8ac397;cursor:default}
+.card:focus-visible,button:focus-visible{outline:3px solid #e2a900;outline-offset:3px}
+.controls{display:flex;gap:10px;margin-top:15px}
+.controls button{flex:1;border:0;border-radius:12px;padding:12px 10px;font-weight:700;font-size:.95rem;cursor:pointer}
+#restart{background:var(--green);color:white}
+#share{background:#edf5ee;color:var(--green)}
+#message{text-align:center;min-height:28px;margin:13px 0 0;font-weight:650;color:var(--green)}
+.instructions{text-align:center;font-size:.88rem;color:#607464;margin:14px 4px 0}
+footer{text-align:center;color:#819184;font-size:.75rem;margin-top:15px}
+@media(max-width:360px){.board{gap:6px}.card{border-radius:10px}.panel{padding:11px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="art" aria-hidden="true">🥕 🍅 🥬</div>
+  <h1>Jogo da Memória — Minha Horta</h1>
+  <p>Encontre os 8 pares de hortaliças!</p>
+</header>
+<section class="panel" aria-label="Jogo da memória">
+  <div class="stats" aria-live="polite">
+    <div class="stat"><strong id="moves">0</strong><span>Jogadas</span></div>
+    <div class="stat"><strong id="pairs">0/8</strong><span>Pares encontrados</span></div>
+    <div class="stat"><strong id="errors">0</strong><span>Tentativas erradas</span></div>
+  </div>
+  <div class="board" id="board" aria-label="Cartas do jogo"></div>
+  <p id="message" role="status">Toque em duas cartas para encontrar os pares.</p>
+  <div class="controls">
+    <button id="restart" type="button">↻ Jogar novamente</button>
+    <button id="share" type="button">Compartilhar ↗</button>
+  </div>
+  <p class="instructions">Como jogar: vire duas cartas por vez. Se forem iguais, o par fica descoberto. Encontre todos para vencer!</p>
+</section>
+<footer>Atividade educativa • Horta e alimentação</footer>
+</main>
+<script>
+const vegetables = [
+  {name:"Cebola",emoji:"🧅"},{name:"Tomate",emoji:"🍅"},
+  {name:"Cenoura",emoji:"🥕"},{name:"Alface",emoji:"🥬"},
+  {name:"Pepino",emoji:"🥒"},{name:"Pimentão",emoji:"🫑"},
+  {name:"Batata",emoji:"🥔"},{name:"Alho",emoji:"🧄"}
+];
+const board=document.getElementById("board");
+const movesEl=document.getElementById("moves");
+const pairsEl=document.getElementById("pairs");
+const errorsEl=document.getElementById("errors");
+const message=document.getElementById("message");
+let deck=[],first=null,second=null,locked=false,moves=0,errors=0,matched=0;
+function shuffle(items){for(let i=items.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[items[i],items[j]]=[items[j],items[i]];}return items;}
+function updateStats(){movesEl.textContent=moves;pairsEl.textContent=matched+"/8";errorsEl.textContent=errors;}
+function makeCard(index){
+  const item=deck[index];
+  const btn=document.createElement("button");
+  btn.type="button";btn.className="card";btn.dataset.index=index;
+  btn.setAttribute("aria-label","Carta fechada");
+  btn.innerHTML='<span class="symbol" aria-hidden="true">🌱</span><span class="name">HORTA</span>';
+  btn.addEventListener("click",()=>reveal(index));
+  return btn;
+}
+function showCard(index){
+  const el=board.children[index],item=deck[index];
+  el.classList.add("revealed");el.innerHTML=`<span class="symbol" aria-hidden="true">${item.emoji}</span><span class="name">${item.name}</span>`;
+  el.setAttribute("aria-label",item.name);
+}
+function hideCard(index){
+  const el=board.children[index];
+  el.classList.remove("revealed");el.innerHTML='<span class="symbol" aria-hidden="true">🌱</span><span class="name">HORTA</span>';
+  el.setAttribute("aria-label","Carta fechada");
+}
+function reveal(index){
+  if(locked)return;
+  const el=board.children[index];
+  if(el.classList.contains("revealed")||el.classList.contains("matched"))return;
+  showCard(index);
+  if(first===null){first=index;return;}
+  second=index;moves++;
+  const a=deck[first],b=deck[second];
+  if(a.name===b.name){
+    [first,second].forEach(i=>{const card=board.children[i];card.classList.remove("revealed");card.classList.add("matched");card.disabled=true;});
+    matched++;message.textContent=`Muito bem! Par de ${a.name.toLowerCase()} encontrado!`;
+    first=null;second=null;updateStats();
+    if(matched===8)message.textContent=`🎉 Parabéns! Você encontrou todos os pares em ${moves} jogadas!`;
+  }else{
+    errors++;locked=true;message.textContent="Não formou par. Tente novamente!";
+    updateStats();
+    window.setTimeout(()=>{hideCard(first);hideCard(second);first=null;second=null;locked=false;},850);
+  }
+  updateStats();
+}
+function start(){
+  deck=shuffle([...vegetables,...vegetables].map(x=>({...x})));
+  first=null;second=null;locked=false;moves=0;errors=0;matched=0;
+  board.innerHTML="";deck.forEach((_,i)=>board.appendChild(makeCard(i)));
+  message.textContent="Toque em duas cartas para encontrar os pares.";
+  updateStats();
+}
+document.getElementById("restart").addEventListener("click",start);
+document.getElementById("share").addEventListener("click",async()=>{
+  const data={title:document.title,text:"Vamos jogar o Jogo da Memória — Minha Horta!"};
+  if(navigator.share){try{await navigator.share(data);}catch(e){}}
+  else if(navigator.clipboard){try{await navigator.clipboard.writeText(location.href);message.textContent="Endereço copiado!";}catch(e){message.textContent="Copie o endereço da página para compartilhar.";}}
+  else message.textContent="Copie o endereço da página para compartilhar.";
+});
+start();
+</script>
+</body>
+</html>
